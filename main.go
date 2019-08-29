@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/heroku/x/hmetrics/onload"
+
+	"github.com/google/uuid"
 )
 
 type DelayedAction struct {
@@ -16,19 +19,19 @@ type DelayedAction struct {
 	ActionUrl	string `form:"actionUrl" json:"actionUrl" binding:"required"`
 }
 
-type EventDetails struct {
-	Type 		string `form:"type" json:"type" binding:"required"`
-	Uuid 		string `form:"uuid" json:"uuid" binding:"optional"`
-	DeviceId	string `form:"uuid" json:"uuid" binding:"optional"`
-	Tenant 		string `form:"tenantId" json:"tenantId" binding:"optional"`
-	Action      DelayedAction `form:"action" json:"action" binding:"required"`
-}
-
-type ActionQuery struct {
-	Uuid 		string 	`form:"uuid" json:"uuid" binding:"required"`
-	DeviceId 	string	`form:"deviceId" json:"deviceId" binding:"required"`
-	ApplicationVerison	string	`form:"appVersion" json:"appVersion" binding:"required"`
-}
+//type EventDetails struct {
+//	Type 		string `form:"type" json:"type" binding:"required"`
+//	Uuid 		string `form:"uuid" json:"uuid" binding:"optional"`
+//	DeviceId	string `form:"uuid" json:"uuid" binding:"optional"`
+//	Tenant 		string `form:"tenantId" json:"tenantId" binding:"optional"`
+//	Action      DelayedAction `form:"action" json:"action" binding:"required"`
+//}
+//
+//type ActionQuery struct {
+//	Uuid 		string 	`form:"uuid" json:"uuid" binding:"required"`
+//	DeviceId 	string	`form:"deviceId" json:"deviceId" binding:"required"`
+//	ApplicationVerison	string	`form:"appVersion" json:"appVersion" binding:"required"`
+//}
 
 var delayedUserActions map[string][]DelayedAction
 var delayedDeviceActions map[string][]DelayedAction
@@ -36,19 +39,19 @@ var delayedDeviceActions map[string][]DelayedAction
 var correlationId string
 var tenantId string
 
-func extractIdentifyingHeaders() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
-		if correlationId == "" {
-			log.Printf("No correlation ID detected - Generating a lazy correlation ID\n")
-			correlationId = "some-random-uuid-im-too-lazy-to-generate"
-		}
-		tenantId = c.Request.Header.Get("X-MTT-Tenant-ID")
-	}
-}
-
 func cheapoLog(level string, msg string) {
 	log.Printf("%s [correlationId: %s][tenantId: %s] %s - %s\n", time.Now().String(), correlationId, tenantId, level, msg)
+}
+
+func extractIdentifyingHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantId = c.Request.Header.Get("X-MTT-Tenant-ID")
+		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
+		if correlationId == "" {
+			correlationId = uuid.New().String()
+			cheapoLog("INFO", "No correlation ID detected - Generating a lazy correlation ID")
+		}
+	}
 }
 
 func main() {
@@ -73,25 +76,50 @@ func main() {
 	// 	c.HTML(http.StatusOK, "index.tmpl.html", nil)
 	// })
 
-	router.POST("/registerDelayedUserEvent", func(c *gin.Context) {
-		var json EventDetails
-		if err := c.BindJSON(&json); err != nil {
-			cheapoLog("ERROR", "No JSON payload. Aborting request")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		}
+	router.GET("/status", func(c *gin.Context) {
+		cheapoLog("INFO", "Status - OK")
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
 
-		if json.Uuid != "" {
-			//User Action
-			if delayedUserActions[json.Uuid] == nil {
-				delayedUserActions[json.Uuid] = make([]DelayedAction)
-			}
+	//router.POST("/registerDelayedUserEvent", func(c *gin.Context) {
+	//	var json EventDetails
+	//	if err := c.BindJSON(&json); err != nil {
+	//		cheapoLog("ERROR", "No JSON payload. Aborting request")
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	//	}
+	//
+	//	newAction := json.Action
+	//	if newAction.Id == "" {
+	//		newAction.Id = uuid.New().String()
+	//	}
+	//
+	//	created := 0
+	//	if json.Uuid != "" {
+	//		//User Action
+	//		delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], json.Action)
+	//		created += 1
+	//	} else if json.DeviceId != "" {
+	//		delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], json.Action)
+	//		created += 1
+	//	}
+	//
+	//	c.JSON(http.StatusCreated, gin.H{"created": created})
+	//})
 
+	router.GET("/actions", func(c *gin.Context) {
+		switch strings.ToLower(c.Query("type")) {
+		case "user" :
+			c.JSON(http.StatusOK, gin.H{"userActions": delayedUserActions})
+		case "device":
+			c.JSON(http.StatusOK, gin.H{"deviceActions": delayedDeviceActions})
+		default:
+			c.JSON(http.StatusOK, gin.H{"userActions": delayedUserActions, "deviceActions": delayedDeviceActions})
 		}
 	})
 
-	router.POST("/queryDelayedActions", func(c *gin.Context) {
+	//router.POST("/queryDelayedActions", func(c *gin.Context) {
+	//
+	//})
 
-	})
-
-	router.Run(":" + port)
+	_ = router.Run(":" + port)
 }
