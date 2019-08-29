@@ -47,6 +47,12 @@ func cheapoLog(level string, msg string) {
 func extractIdentifyingHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantId = c.Request.Header.Get("X-MTT-Tenant-ID")
+		if tenantId == "" {
+			//Let's assume it's tripassist!
+			tenantId = "tripassist"
+			cheapoLog("WARN", "No Tenant id specified. Defaulting to 'tripassist'")
+		}
+
 		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
 		if correlationId == "" {
 			correlationId = uuid.New().String()
