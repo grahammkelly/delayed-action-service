@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 	"strings"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/heroku/x/hmetrics/onload"
@@ -19,19 +20,19 @@ type DelayedAction struct {
 	ActionUrl	string `form:"actionUrl" json:"actionUrl" binding:"required"`
 }
 
-//type EventDetails struct {
-//	Type 		string `form:"type" json:"type" binding:"required"`
-//	Uuid 		string `form:"uuid" json:"uuid" binding:"optional"`
-//	DeviceId	string `form:"uuid" json:"uuid" binding:"optional"`
-//	Tenant 		string `form:"tenantId" json:"tenantId" binding:"optional"`
-//	Action      DelayedAction `form:"action" json:"action" binding:"required"`
-//}
-//
-//type ActionQuery struct {
-//	Uuid 		string 	`form:"uuid" json:"uuid" binding:"required"`
-//	DeviceId 	string	`form:"deviceId" json:"deviceId" binding:"required"`
-//	ApplicationVerison	string	`form:"appVersion" json:"appVersion" binding:"required"`
-//}
+type EventDetails struct {
+	Type 		string `form:"type" json:"type" binding:"required"`
+	Uuid 		string `form:"uuid" json:"uuid" binding:"optional"`
+	DeviceId	string `form:"uuid" json:"uuid" binding:"optional"`
+	Tenant 		string `form:"tenantId" json:"tenantId" binding:"optional"`
+	Action      DelayedAction `form:"action" json:"action" binding:"required"`
+}
+
+type ActionQuery struct {
+	Uuid 		string 	`form:"uuid" json:"uuid" binding:"required"`
+	DeviceId 	string	`form:"deviceId" json:"deviceId" binding:"required"`
+	ApplicationVerison	string	`form:"appVersion" json:"appVersion" binding:"required"`
+}
 
 var delayedUserActions map[string][]DelayedAction
 var delayedDeviceActions map[string][]DelayedAction
@@ -49,7 +50,7 @@ func extractIdentifyingHeaders() gin.HandlerFunc {
 		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
 		if correlationId == "" {
 			correlationId = uuid.New().String()
-			cheapoLog("INFO", "No correlation ID detected - Generating a lazy correlation ID")
+			cheapoLog("TRACE", "No correlation ID detected - Generating a lazy correlation ID")
 		}
 	}
 }
@@ -81,30 +82,35 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	//router.POST("/registerDelayedUserEvent", func(c *gin.Context) {
-	//	var json EventDetails
-	//	if err := c.BindJSON(&json); err != nil {
-	//		cheapoLog("ERROR", "No JSON payload. Aborting request")
-	//		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	//	}
-	//
-	//	newAction := json.Action
-	//	if newAction.Id == "" {
-	//		newAction.Id = uuid.New().String()
-	//	}
-	//
-	//	created := 0
-	//	if json.Uuid != "" {
-	//		//User Action
-	//		delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], json.Action)
-	//		created += 1
-	//	} else if json.DeviceId != "" {
-	//		delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], json.Action)
-	//		created += 1
-	//	}
-	//
-	//	c.JSON(http.StatusCreated, gin.H{"created": created})
-	//})
+	router.POST("/registerDelayedAction", func(c *gin.Context) {
+		var json EventDetails
+		if err := c.BindJSON(&json); err != nil {
+			cheapoLog("ERROR", "No JSON payload. Aborting request")
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+
+		newAction := json.Action
+		if newAction.Id == "" {
+			newAction.Id = uuid.New().String()
+		}
+
+		created := 0
+		if json.Uuid != "" {
+			cheapoLog("INFO",
+				fmt.Sprintf("Adding USER action for user %s - %s (%s -> %s)", json.Uuid, newAction.Id, newAction.ActionType, newAction.ActionUrl))
+
+			//User Action
+			delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], json.Action)
+			created += 1
+		} else if json.DeviceId != "" {
+			cheapoLog("INFO",
+				fmt.Sprintf("Adding DEVICE action for user %s - %s (%s -> %s)", json.DeviceId, newAction.Id, newAction.ActionType, newAction.ActionUrl))
+			delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], json.Action)
+			created += 1
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"created": created})
+	})
 
 	router.GET("/actions", func(c *gin.Context) {
 		switch strings.ToLower(c.Query("type")) {

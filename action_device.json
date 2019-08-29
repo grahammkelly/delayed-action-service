@@ -1,0 +1,8 @@
+{
+  "type": "device",
+  "deviceId": "blah",
+  "action": {
+    "actionType": "webview",
+    "actionUrl": "http://www.google.ie"
+  }
+}
