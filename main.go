@@ -78,7 +78,7 @@ func main() {
 	router.Use(extractIdentifyingHeaders())	//Extract MTT headers for all routes
 
 	router.POST("/status", func(c *gin.Context) {
-		cheapoLog("INFO", "Ya eejit. It's a GET.\tStatus - OK")
+		cheapoLog("INFO", "Status - OK")
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 	router.GET("/status", func(c *gin.Context) {
@@ -119,7 +119,7 @@ func main() {
 		created := 0  //Currently don't support more than 1 at a time, but in the future .....?
 		if json.Uuid != "" {
 			cheapoLog("INFO",
-				fmt.Sprintf("Adding USER action for user %s - (%v)", json.Uuid, newAction))
+				fmt.Sprintf("Adding USER action for user %s - (%+v)", json.Uuid, newAction))
 
 			//User Action
 			userKey := fmt.Sprintf("%s##%s", tenantId, json.Uuid)
@@ -127,7 +127,7 @@ func main() {
 			created ++
 		} else if json.DeviceId != "" {
 			cheapoLog("INFO",
-				fmt.Sprintf("Adding DEVICE action for device %s - (%v)", json.DeviceId, newAction))
+				fmt.Sprintf("Adding DEVICE action for device %s - (%+v)", json.DeviceId, newAction))
 
 			//Device action
 			deviceKey := fmt.Sprintf("%s##%s", tenantId, json.DeviceId)
@@ -146,7 +146,7 @@ func main() {
 		}
 		qry.ApplicationVersion = strings.ToLower(qry.ApplicationVersion)	//Make sure any characters will be the same case when comparing
 
-		cheapoLog("INFO", fmt.Sprintf("Searching for delayed actions for [%v]", qry))
+		cheapoLog("INFO", fmt.Sprintf("Searching for delayed actions for [%+v]", qry))
 
 		var matchedActions []DelayedAction	//Set up the array that will be returned
 
@@ -156,7 +156,7 @@ func main() {
 			matchedUserActions, delayedUserActions = getMatchingActions(qry.Uuid, qry.ApplicationVersion, delayedUserActions)
 
 			cheapoLog("DEBUG",
-				fmt.Sprintf("Found %v user actions after filtering: %v", len(matchedUserActions), matchedUserActions))
+				fmt.Sprintf("Found %v user actions after filtering: %+v", len(matchedUserActions), matchedUserActions))
 
 			if len(matchedUserActions) > 0 {
 				matchedActions = append(matchedActions, matchedUserActions...)
@@ -168,7 +168,7 @@ func main() {
 			matchedDeviceActions, delayedDeviceActions = getMatchingActions(qry.DeviceId, qry.ApplicationVersion, delayedDeviceActions)
 
 			cheapoLog("DEBUG",
-				fmt.Sprintf("Found %v device actions after filtering: %v", len(matchedDeviceActions), matchedDeviceActions))
+				fmt.Sprintf("Found %v device actions after filtering: %+v", len(matchedDeviceActions), matchedDeviceActions))
 
 			if len(matchedDeviceActions) > 0 {
 				matchedActions = append(matchedActions, matchedDeviceActions...)
@@ -201,7 +201,7 @@ func getMatchingActions(id, appVersion string, delayedActions map[string][]Delay
 			action := keyActions[idx]
 
 			if action.MinApplicationVersion <= appVersion {
-				cheapoLog("DEBUG", fmt.Sprintf("Action [%v] matched for App Version %s", action, appVersion))
+				cheapoLog("DEBUG", fmt.Sprintf("Action [%+v] matched for App Version %s", action, appVersion))
 
 				matchedActions = append(matchedActions, action)
 
@@ -213,7 +213,7 @@ func getMatchingActions(id, appVersion string, delayedActions map[string][]Delay
 			}
 		}
 
-		cheapoLog("TRACE", fmt.Sprintf("Replacing actions for [%s]. \n\tWas: %v. \n\tReplacing with: %v", key, delayedActions[key], keyActions))
+		cheapoLog("TRACE", fmt.Sprintf("Replacing actions for [%s]. \n\tWas: %+v. \n\tReplacing with: %+v", key, delayedActions[key], keyActions))
 		delayedActions[key] = keyActions
 	}
 
