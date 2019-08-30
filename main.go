@@ -116,6 +116,8 @@ func main() {
 			newAction.MinApplicationVersion = strings.ToLower(newAction.MinApplicationVersion)
 		}
 
+		cheapoLog("INFO", fmt.Sprintf("Adding Delayed action %+v", newAction))
+
 		created := 0  //Currently don't support more than 1 at a time, but in the future .....?
 		if json.Uuid != "" {
 			cheapoLog("INFO",
