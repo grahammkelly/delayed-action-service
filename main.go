@@ -7,11 +7,12 @@ import (
 	"time"
 	"strings"
 	"fmt"
+	"crypto/rand"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/heroku/x/hmetrics/onload"
 
-	"github.com/google/uuid"
+	//"github.com/google/uuid"
 )
 
 type DelayedAction struct {
@@ -56,7 +57,7 @@ func extractIdentifyingHeaders() gin.HandlerFunc {
 
 		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
 		if correlationId == "" {
-			correlationId = uuid.New().String()
+			correlationId = generateUuid()
 			cheapoLog("TRACE", "No correlation ID detected - Generating a lazy correlation ID")
 		}
 	}
@@ -108,7 +109,7 @@ func main() {
 
 		//Cleanup the incoming action
 		if newAction.Id == "" {
-			newAction.Id = uuid.New().String()
+			newAction.Id = generateUuid()
 		}
 		if newAction.MinApplicationVersion == "" {
 			newAction.MinApplicationVersion = "0"
@@ -219,4 +220,18 @@ func getMatchingActions(id, appVersion string, delayedActions map[string][]Delay
 
 	return matchedActions, delayedActions
 
+}
+
+func generateUuid() (uuid string) {
+
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+
+	return
 }
