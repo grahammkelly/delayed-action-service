@@ -11,8 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/heroku/x/hmetrics/onload"
-
-	//"github.com/google/uuid"
 )
 
 type DelayedAction struct {
@@ -36,6 +34,8 @@ type ActionQuery struct {
 	ApplicationVersion	string	`form:"appVersion" json:"appVersion" binding:"required"`
 }
 
+const defaultTenantId  = "multitenant"
+
 var delayedUserActions map[string][]DelayedAction
 var delayedDeviceActions map[string][]DelayedAction
 
@@ -50,9 +50,9 @@ func extractIdentifyingHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantId = c.Request.Header.Get("X-MTT-Tenant-ID")
 		if tenantId == "" {
-			//Let's assume it's tripassist!
-			tenantId = "tripassist"
-			cheapoLog("WARN", "No Tenant id specified. Defaulting to 'tripassist'")
+			//Let's assume it's the default!
+			tenantId = defaultTenantId
+			cheapoLog("WARN", fmt.Sprintf("No Tenant id specified. Defaulting to '%s", defaultTenantId))
 		}
 
 		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
