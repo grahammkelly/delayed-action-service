@@ -58,7 +58,6 @@ func extractIdentifyingHeaders() gin.HandlerFunc {
 		correlationId = c.Request.Header.Get("X-MTT-Correlation-ID")
 		if correlationId == "" {
 			correlationId = generateUuid()
-			cheapoLog("TRACE", "No correlation ID detected - Generating a lazy correlation ID")
 		}
 	}
 }
