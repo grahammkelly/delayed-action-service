@@ -139,7 +139,7 @@ func main() {
 		c.JSON(http.StatusCreated, gin.H{"created": created})
 	})
 
-	router.POST("/delayedActions/find", func(c *gin.Context) {
+	router.POST("/delayedActions/find/queryDelayedActions", func(c *gin.Context) {
 		var qry ActionQuery
 		if err := c.BindJSON(&qry); err != nil {
 			cheapoLog("ERROR", "Query data invalid")
