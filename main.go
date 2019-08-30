@@ -15,16 +15,16 @@ import (
 )
 
 type DelayedAction struct {
-	Id			string `form:"id" json:"id" binding:"optional"`
+	Id			string `form:"id" json:"id"`
 	ActionType	string `form:"actionType" json:"actionType" binding:"required"`
 	ActionUrl	string `form:"actionUrl" json:"actionUrl" binding:"required"`
 }
 
 type EventDetails struct {
 	Type 		string `form:"type" json:"type" binding:"required"`
-	Uuid 		string `form:"uuid" json:"uuid" binding:"optional"`
-	DeviceId	string `form:"uuid" json:"uuid" binding:"optional"`
-	Tenant 		string `form:"tenantId" json:"tenantId" binding:"optional"`
+	Uuid 		string `form:"uuid" json:"uuid, omitempty"`
+	DeviceId	string `form:"deviceId" json:"deviceId, omitempty"`
+	Tenant 		string `form:"tenantId" json:"tenantId, omitempty"`
 	Action      DelayedAction `form:"action" json:"action" binding:"required"`
 }
 
@@ -83,6 +83,10 @@ func main() {
 	// 	c.HTML(http.StatusOK, "index.tmpl.html", nil)
 	// })
 
+	router.POST("/status", func(c *gin.Context) {
+		cheapoLog("INFO", "Ya eejit. It's a GET.\tStatus - OK")
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
 	router.GET("/status", func(c *gin.Context) {
 		cheapoLog("INFO", "Status - OK")
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
@@ -100,18 +104,18 @@ func main() {
 			newAction.Id = uuid.New().String()
 		}
 
-		created := 0
+		created := 0  //Currently don't suport more than 1 at a time, but in the future .....?
 		if json.Uuid != "" {
 			cheapoLog("INFO",
-				fmt.Sprintf("Adding USER action for user %s - %s (%s -> %s)", json.Uuid, newAction.Id, newAction.ActionType, newAction.ActionUrl))
+				fmt.Sprintf("Adding USER action for user %s - ([%s] %s -> %s)", json.Uuid, newAction.Id, newAction.ActionType, newAction.ActionUrl))
 
 			//User Action
-			delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], json.Action)
+			delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], newAction)
 			created += 1
 		} else if json.DeviceId != "" {
 			cheapoLog("INFO",
-				fmt.Sprintf("Adding DEVICE action for user %s - %s (%s -> %s)", json.DeviceId, newAction.Id, newAction.ActionType, newAction.ActionUrl))
-			delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], json.Action)
+				fmt.Sprintf("Adding DEVICE action for user %s - ([%s] %s -> %s)", json.DeviceId, newAction.Id, newAction.ActionType, newAction.ActionUrl))
+			delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], newAction)
 			created += 1
 		}
 
