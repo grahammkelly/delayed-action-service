@@ -3,6 +3,7 @@
   "deviceId": "blah",
   "action": {
     "actionType": "webview",
-    "actionUrl": "http://www.google.ie"
+    "actionUrl": "http://www.google.ie",
+    "minAppVersion": "1.12"
   }
 }

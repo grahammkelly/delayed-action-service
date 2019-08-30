@@ -16,6 +16,7 @@ import (
 
 type DelayedAction struct {
 	Id			string `form:"id" json:"id"`
+	MinApplicationVersion string `form:"minAppVersion" json:"minAppVersion"`
 	ActionType	string `form:"actionType" json:"actionType" binding:"required"`
 	ActionUrl	string `form:"actionUrl" json:"actionUrl" binding:"required"`
 }
@@ -31,7 +32,7 @@ type EventDetails struct {
 type ActionQuery struct {
 	Uuid 		string 	`form:"uuid" json:"uuid" binding:"required"`
 	DeviceId 	string	`form:"deviceId" json:"deviceId" binding:"required"`
-	ApplicationVerison	string	`form:"appVersion" json:"appVersion" binding:"required"`
+	ApplicationVersion	string	`form:"appVersion" json:"appVersion" binding:"required"`
 }
 
 var delayedUserActions map[string][]DelayedAction
@@ -76,13 +77,6 @@ func main() {
 	router.Use(gin.Recovery())	//Handle errors
 	router.Use(extractIdentifyingHeaders())	//Extract MTT headers for all routes
 
-	// router.LoadHTMLGlob("templates/*.tmpl.html")
-	// router.Static("/static", "static")
-
-	// router.GET("/", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "index.tmpl.html", nil)
-	// })
-
 	router.POST("/status", func(c *gin.Context) {
 		cheapoLog("INFO", "Ya eejit. It's a GET.\tStatus - OK")
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
@@ -92,37 +86,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	router.POST("/registerDelayedAction", func(c *gin.Context) {
-		var json EventDetails
-		if err := c.BindJSON(&json); err != nil {
-			cheapoLog("ERROR", "No JSON payload. Aborting request")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		}
-
-		newAction := json.Action
-		if newAction.Id == "" {
-			newAction.Id = uuid.New().String()
-		}
-
-		created := 0  //Currently don't suport more than 1 at a time, but in the future .....?
-		if json.Uuid != "" {
-			cheapoLog("INFO",
-				fmt.Sprintf("Adding USER action for user %s - ([%s] %s -> %s)", json.Uuid, newAction.Id, newAction.ActionType, newAction.ActionUrl))
-
-			//User Action
-			delayedUserActions[json.Uuid] = append(delayedUserActions[json.Uuid], newAction)
-			created += 1
-		} else if json.DeviceId != "" {
-			cheapoLog("INFO",
-				fmt.Sprintf("Adding DEVICE action for user %s - ([%s] %s -> %s)", json.DeviceId, newAction.Id, newAction.ActionType, newAction.ActionUrl))
-			delayedDeviceActions[json.DeviceId] = append(delayedDeviceActions[json.DeviceId], newAction)
-			created += 1
-		}
-
-		c.JSON(http.StatusCreated, gin.H{"created": created})
-	})
-
-	router.GET("/actions", func(c *gin.Context) {
+	router.GET("/delayedActions", func(c *gin.Context) {
 		switch strings.ToLower(c.Query("type")) {
 		case "user" :
 			c.JSON(http.StatusOK, gin.H{"userActions": delayedUserActions})
@@ -133,9 +97,126 @@ func main() {
 		}
 	})
 
-	//router.POST("/queryDelayedActions", func(c *gin.Context) {
-	//
-	//})
+	router.POST("/delayedAction", func(c *gin.Context) {
+		var json EventDetails
+		if err := c.BindJSON(&json); err != nil {
+			cheapoLog("ERROR", "No JSON payload. Aborting request")
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+
+		newAction := json.Action
+
+		//Cleanup the incoming action
+		if newAction.Id == "" {
+			newAction.Id = uuid.New().String()
+		}
+		if newAction.MinApplicationVersion == "" {
+			newAction.MinApplicationVersion = "0"
+		} else {
+			newAction.MinApplicationVersion = strings.ToLower(newAction.MinApplicationVersion)
+		}
+
+		created := 0  //Currently don't support more than 1 at a time, but in the future .....?
+		if json.Uuid != "" {
+			cheapoLog("INFO",
+				fmt.Sprintf("Adding USER action for user %s - (%v)", json.Uuid, newAction))
+
+			//User Action
+			userKey := fmt.Sprintf("%s##%s", tenantId, json.Uuid)
+			delayedUserActions[userKey] = append(delayedUserActions[userKey], newAction)
+			created ++
+		} else if json.DeviceId != "" {
+			cheapoLog("INFO",
+				fmt.Sprintf("Adding DEVICE action for device %s - (%v)", json.DeviceId, newAction))
+
+			//Device action
+			deviceKey := fmt.Sprintf("%s##%s", tenantId, json.DeviceId)
+			delayedDeviceActions[deviceKey] = append(delayedDeviceActions[deviceKey], newAction)
+			created ++
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"created": created})
+	})
+
+	router.POST("/delayedActions/find", func(c *gin.Context) {
+		var qry ActionQuery
+		if err := c.BindJSON(&qry); err != nil {
+			cheapoLog("ERROR", "Query data invalid")
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		qry.ApplicationVersion = strings.ToLower(qry.ApplicationVersion)	//Make sure any characters will be the same case when comparing
+
+		cheapoLog("INFO", fmt.Sprintf("Searching for delayed actions for [%v]", qry))
+
+		var matchedActions []DelayedAction	//Set up the array that will be returned
+
+		//Check the user actions first
+		if qry.Uuid != "" {
+			var matchedUserActions []DelayedAction
+			matchedUserActions, delayedUserActions = getMatchingActions(qry.Uuid, qry.ApplicationVersion, delayedUserActions)
+
+			cheapoLog("DEBUG",
+				fmt.Sprintf("Found %v user actions after filtering: %v", len(matchedUserActions), matchedUserActions))
+
+			if len(matchedUserActions) > 0 {
+				matchedActions = append(matchedActions, matchedUserActions...)
+			}
+		}
+
+		if qry.DeviceId != "" {
+			var matchedDeviceActions []DelayedAction
+			matchedDeviceActions, delayedDeviceActions = getMatchingActions(qry.DeviceId, qry.ApplicationVersion, delayedDeviceActions)
+
+			cheapoLog("DEBUG",
+				fmt.Sprintf("Found %v device actions after filtering: %v", len(matchedDeviceActions), matchedDeviceActions))
+
+			if len(matchedDeviceActions) > 0 {
+				matchedActions = append(matchedActions, matchedDeviceActions...)
+			}
+		}
+
+		//Return appropriate response
+		if len(matchedActions) == 0 {	//No `(..?..:..)` in go
+			c.JSON(http.StatusNotFound, []DelayedAction{})
+		} else {
+			c.JSON(http.StatusOK, matchedActions)
+		}
+	})
+
+	router.DELETE("/delayedAction/:actionId", func(c *gin.Context) {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented yet"})
+	})
 
 	_ = router.Run(":" + port)
+}
+
+func getMatchingActions(id, appVersion string, delayedActions map[string][]DelayedAction) ([]DelayedAction, map[string][]DelayedAction) {
+	var matchedActions []DelayedAction
+
+	key := fmt.Sprintf("%s##%s", tenantId, id)
+	if keyActions, ok := delayedActions[key]; ok {
+		cheapoLog("DEBUG", fmt.Sprintf("Initial check matched %v actions...filtering those that apply", len(keyActions)))
+		idx := 0
+		for idx < len(keyActions) { //Can't loop over the slice because we're removing elements as we go!
+			action := keyActions[idx]
+
+			if action.MinApplicationVersion <= appVersion {
+				cheapoLog("DEBUG", fmt.Sprintf("Action [%v] matched for App Version %s", action, appVersion))
+
+				matchedActions = append(matchedActions, action)
+
+				//Remove the action from the pending actions now
+				keyActions[idx] = keyActions[len(keyActions)-1] //Swap this element with the last one
+				keyActions = keyActions[:len(keyActions)-1]     //Remove the last element
+			} else {
+				idx++ //Only updating the idx we're looking at if we didn't update the underlying array
+			}
+		}
+
+		cheapoLog("TRACE", fmt.Sprintf("Replacing actions for [%s]. \n\tWas: %v. \n\tReplacing with: %v", key, delayedActions[key], keyActions))
+		delayedActions[key] = keyActions
+	}
+
+	return matchedActions, delayedActions
+
 }

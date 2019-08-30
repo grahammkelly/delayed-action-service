@@ -3,6 +3,7 @@
   "uuid": "563328fb-e2ac-468e-bebd-86cd0e62af72",
   "action": {
     "actionType": "webview",
-    "actionUrl": "http://www.google.ie"
+    "actionUrl": "http://www.google.ie",
+    "minAppVersion": "1.12"
   }
 }
