@@ -1,6 +1,6 @@
 module github.com/grahammkelly/delayed-action-service
 
-go 1.12
+go 1.12.9
 
 require (
 	github.com/gin-gonic/gin v1.4.0
